@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,10 +8,23 @@ datasource db {
 }
 
 model User {
-  id Int @id @default(autoincrement())
-  email String @unique
-  hash String
+  id       Int     @id @default(autoincrement())
+  email    String  @unique
+  hash     String
   hashedRt String?
 
   @@map("users")
+}
+
+model Deal {
+  id       Int    @id @default(autoincrement())
+  img      String
+  price    Int
+  daysLeft Int
+  sold     Int
+  yield    Float
+  name     String
+  ticketPrice Int 
+
+  @@map("deals")
 }

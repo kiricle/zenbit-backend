@@ -1,13 +1,13 @@
 import {
-  Injectable,
-  ForbiddenException,
   BadRequestException,
+  ForbiddenException,
+  Injectable,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AuthDto } from './dto';
-import * as bcrypt from 'bcrypt';
 import { Tokens } from './types';
-import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class AuthService {
@@ -63,9 +63,46 @@ export class AuthService {
     return tokens;
   }
 
-  signOut() {}
+  async signOut(userId: number) {
+    await this.prisma.user.updateMany({
+      where: {
+        id: userId,
+        hashedRt: {
+          not: null,
+        },
+      },
+      data: {
+        hashedRt: null,
+      },
+    });
 
-  refreshTokens() {}
+    return true;
+  }
+
+  async refreshTokens(userId: number, refreshToken: string): Promise<Tokens> {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+    });
+
+    if (!user || !user.hashedRt) {
+      throw new ForbiddenException('Access Denied');
+    }
+
+    const refreshTokenMatches = await bcrypt.compare(
+      refreshToken,
+      user.hashedRt,
+    );
+
+    if (!refreshTokenMatches) {
+      throw new ForbiddenException('Access Denied');
+    }
+
+    const tokens = await this.getTokens(user.id, user.email);
+    await this.updateRefreshTokenHash(user.id, tokens.refresh_token);
+    return tokens;
+  }
 
   async updateRefreshTokenHash(userId: number, refreshToken: string) {
     const hash = await this.hashData(refreshToken);
@@ -92,7 +129,7 @@ export class AuthService {
         },
         {
           secret: process.env.ACCESS_TOKEN_SECRET,
-          expiresIn: 60 * 60 * 24,
+          expiresIn: '30m',
         },
       ),
       this.jwtService.signAsync(
@@ -102,7 +139,7 @@ export class AuthService {
         },
         {
           secret: process.env.ACCESS_TOKEN_SECRET,
-          expiresIn: 60 * 60 * 24 * 7,
+          expiresIn: '7d',
         },
       ),
     ]);
